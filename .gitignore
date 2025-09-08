@@ -1,2 +1,6 @@
 /depan
 /env.bus
+node_modules
+env
+.env
+
