@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test WebSocket Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #0a0a0a;
+            color: #ffffff;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .connected {
+            background: #00ff00;
+            color: #000;
+        }
+        .disconnected {
+            background: #ff4444;
+            color: #fff;
+        }
+        .attack {
+            background: #1a1a2e;
+            border: 1px solid #2a2a3e;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+        }
+        .attack-info {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+        .attack-line {
+            color: #ff4444;
+            font-weight: bold;
+        }
+        button {
+            background: #ff4444;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #ff6666;
+        }
+        #attacks {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌍 BAPPENAS Attack Map - WebSocket Test</h1>
+        
+        <div id="status" class="status disconnected">
+            Status: Disconnected
+        </div>
+        
+        <div>
+            <button onclick="connect()">Connect</button>
+            <button onclick="disconnect()">Disconnect</button>
+            <button onclick="clearAttacks()">Clear Attacks</button>
+        </div>
+        
+        <div>
+            <h3>📊 Statistics</h3>
+            <p>Total Attacks: <span id="totalAttacks">0</span></p>
+            <p>Last Update: <span id="lastUpdate">Never</span></p>
+        </div>
+        
+        <div>
+            <h3>🎯 Recent Attacks</h3>
+            <div id="attacks"></div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let totalAttacks = 0;
+        let lastUpdate = null;
+
+        function connect() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                console.log('Already connected');
+                return;
+            }
+
+            ws = new WebSocket('ws://localhost:3001');
+            
+            ws.onopen = function() {
+                console.log('Connected to WebSocket');
+                updateStatus('Connected', true);
+            };
+            
+            ws.onmessage = function(event) {
+                try {
+                    const attacks = JSON.parse(event.data);
+                    console.log('Received attacks:', attacks);
+                    
+                    if (Array.isArray(attacks)) {
+                        totalAttacks += attacks.length;
+                        lastUpdate = new Date();
+                        
+                        updateStats();
+                        displayAttacks(attacks);
+                    }
+                } catch (error) {
+                    console.error('Error parsing message:', error);
+                }
+            };
+            
+            ws.onclose = function() {
+                console.log('Disconnected from WebSocket');
+                updateStatus('Disconnected', false);
+            };
+            
+            ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+                updateStatus('Error', false);
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function updateStatus(message, connected) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = `Status: ${message}`;
+            statusEl.className = `status ${connected ? 'connected' : 'disconnected'}`;
+        }
+
+        function updateStats() {
+            document.getElementById('totalAttacks').textContent = totalAttacks;
+            document.getElementById('lastUpdate').textContent = 
+                lastUpdate ? lastUpdate.toLocaleTimeString() : 'Never';
+        }
+
+        function displayAttacks(attacks) {
+            const attacksEl = document.getElementById('attacks');
+            
+            attacks.forEach(attack => {
+                const attackEl = document.createElement('div');
+                attackEl.className = 'attack';
+                
+                attackEl.innerHTML = `
+                    <div class="attack-info">
+                        <span>ID: ${attack.id}</span>
+                        <span>Type: ${attack.type}</span>
+                    </div>
+                    <div class="attack-line">
+                        ${attack.src_geo?.country || 'Unknown'} → ${attack.dst_geo?.country || 'Unknown'}
+                    </div>
+                    <div class="attack-info">
+                        <span>From: ${attack.src_ip}</span>
+                        <span>To: ${attack.dst_ip}</span>
+                    </div>
+                    <div class="attack-info">
+                        <span>Time: ${new Date(attack.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                `;
+                
+                attacksEl.insertBefore(attackEl, attacksEl.firstChild);
+                
+                // Keep only last 20 attacks
+                while (attacksEl.children.length > 20) {
+                    attacksEl.removeChild(attacksEl.lastChild);
+                }
+            });
+        }
+
+        function clearAttacks() {
+            document.getElementById('attacks').innerHTML = '';
+            totalAttacks = 0;
+            updateStats();
+        }
+
+        // Auto-connect on page load
+        window.onload = function() {
+            connect();
+        };
+    </script>
+</body>
+</html>
